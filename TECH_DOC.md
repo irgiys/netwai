@@ -30,6 +30,8 @@
 | Mediator | MediatR (source-generated) | 14.2.0 |
 | Validation | FluentValidation | 12.1.1 |
 | API Docs | Scalar (OpenAPI) | 2.17.12 |
+| Logging | Serilog | 4.2.0 |
+| Log Sink | Seq | 9.0.0 |
 
 ### 1.3 Installation & Configuration
 
@@ -54,6 +56,33 @@
       "Microsoft.AspNetCore": "Warning"
     }
   },
+  "Serilog": {
+    "Using": ["Serilog.Sinks.Console", "Serilog.Sinks.File", "Serilog.Sinks.Seq"],
+    "MinimumLevel": "Information",
+    "Enrich": ["FromLogContext", "WithMachineName", "WithEnvironmentName"],
+    "WriteTo": [
+      {
+        "Name": "Console",
+        "Args": {
+          "formatter": "Serilog.Formatting.Compact.CompactJsonFormatter, Serilog.Formatting.Compact"
+        }
+      },
+      {
+        "Name": "File",
+        "Args": {
+          "path": "logs/app-.txt",
+          "rollingInterval": "Day",
+          "formatter": "Serilog.Formatting.Compact.CompactJsonFormatter, Serilog.Formatting.Compact"
+        }
+      },
+      {
+        "Name": "Seq",
+        "Args": {
+          "serverUrl": "http://localhost:5342"
+        }
+      }
+    ]
+  },
   "AllowedHosts": "*"
 }
 ```
@@ -67,6 +96,37 @@
 | Test | `dotnet test --no-build` |
 | Add Migration | `dotnet ef migrations add <Name> --project src/Infrastructure --startup-project src/Api` |
 | Update Database | `dotnet ef database update --project src/Infrastructure --startup-project src/Api` |
+---
+
+### 1.5 Seq Logging Setup
+
+**Seq Server** (local log aggregation UI):
+
+```bash
+# Install Seq (Windows)
+# Download from https://datalust.co/seq
+
+# Run Seq with no authentication (dev only)
+$env:SEQ_FIRSTRUN_NOAUTHENTICATION='true'
+& 'C:\Program Files\Seq\Seq.exe' run
+
+# Seq UI: http://localhost:5342
+# API: http://localhost:5342/api/events?limit=20
+```
+
+**Configuration** (in appsettings.json):
+- `serverUrl` - Seq ingestion endpoint (default: `http://localhost:5342`)
+- Console sink - JSON formatted to stdout
+- File sink - Daily rolling `logs/app-.txt` with JSON formatter
+
+**Access Logs**:
+| Source | Command |
+|--------|---------|
+| Seq UI | Open `http://localhost:5342` |
+| File | `Get-Content logs/app-*.txt -Wait` |
+| Console | `dotnet run --project src/Api` |
+| Seq API | `curl http://localhost:5342/api/events?limit=20` |
+
 ---
 
 ## 2. Project Structure
@@ -974,8 +1034,9 @@ dotnet test tests/UnitTests/UnitTests.csproj
 |------|-------|----------|
 | **No Tests** | Zero test coverage | High |
 | **No Auth** | All endpoints public | High |
-| **No Global Exception Handling** | Raw exceptions bubble to 500 | Medium |
-| **No Logging Structure** | Basic console only | Medium |
+| **No Global Exception Handling** | Raw exceptions bubble to 500 | Medium | ✅ **Done** - ExceptionMiddleware |
+| **No Logging Structure** | Basic console only | Medium | ✅ **Done** - Serilog + Seq |
+| **No Request/Response Logging** | No middleware logging | Low | ✅ **Done** - LoggingBehavior |
 | **No Health Checks** | No `/health` endpoint | Low |
 | **No Rate Limiting** | No API protection | Low |
 | **No CORS Policy** | Default allows all | Low |
@@ -993,12 +1054,12 @@ dotnet test tests/UnitTests/UnitTests.csproj
 |-------------|--------|--------|
 | Add xUnit + Moq + Testcontainers tests | Medium | High |
 | Add JWT Authentication | Medium | High |
-| Add global exception middleware | Low | Medium |
-| Add Serilog + Seq/Elastic | Low | Medium |
+| Add global exception middleware | Low | Medium | ✅ **Done** |
+| Add Serilog + Seq/Elastic | Low | Medium | ✅ **Done** |
 | Add health checks (`/health`) | Low | Medium |
 | Add optimistic concurrency (rowversion) | Medium | Medium |
 | Add pagination response wrapper | Low | Low |
-| Add request/response logging middleware | Low | Low |
+| Add request/response logging middleware | Low | Low | ✅ **Done** - LoggingBehavior |
 | Add API versioning | Medium | Low |
 | Add integration tests with Testcontainers | Medium | High |
 
@@ -1011,4 +1072,4 @@ dotnet test tests/UnitTests/UnitTests.csproj
 
 ---
 
-*Generated from codebase analysis on 2026-10-02*
+*Generated from codebase analysis on 2026-10-02 — Seq + Serilog + ExceptionMiddleware + LoggingBehavior added*
